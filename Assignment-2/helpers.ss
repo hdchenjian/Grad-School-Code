@@ -108,6 +108,8 @@
 ;;; records and redefine's match's equality check to handle disp-opnds
 ;;; and index-opnds
 
+(load "match.ss")
+
 (define-syntax define-who
   (lambda (x)
     (syntax-case x ()

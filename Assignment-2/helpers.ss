@@ -419,3 +419,8 @@
       [(,x) x]
       [(,x ,x* ...) `(begin ,x ,x* ...)])))
 
+(define set?
+  (lambda (ls)
+    (or (null? ls)
+        (and (not (memq (car ls) (cdr ls)))
+             (set? (cdr ls))))))

@@ -44,6 +44,8 @@
 (load "helpers.ss")
 (load "match.ss")
 
+
+
 (define-who (verify-scheme program)
 
   #| binop? : sym --> boolean
@@ -121,14 +123,15 @@
    |#
   (define (Tail env)
     (lambda (exp)
+      ;(display exp) (newline)
       (match exp
         [(begin ,[Effect -> e*] ... ,[(Tail env) -> t]) exp]
         [(,t) (guard
                 (triv? t)
                 (if (label? t) (and (member t env) #t))
                 (not (integer? t)) ; architectural nuance.  Jump must be to label, not address.
-              )
-         (values)]
+                )
+         t]
         [,x (errorf who "invalid tail: ~s" x)]
       )
     )
@@ -146,9 +149,8 @@
        (for-each (Tail env) t*)
        ((Tail env) t)
        (if (set? (map string->number (map extract-suffix lbl)))
-             program
+           program
            (errorf who "Label suffixes must be unique: ~s" lbl)))]
     [,x (errorf who "invalid syntax for Program: expected (letrec ([<label> (lambda () ,Tail)]*) ,Tail) but received ~s" program)]
   )
 )
-

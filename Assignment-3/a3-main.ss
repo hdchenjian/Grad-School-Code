@@ -19,8 +19,9 @@
    verify-scheme
    finalize-locations
    expose-basic-blocks
-	 flatten-program
-	 ;generate-x86-64
+   flatten-program
+   ;generate-x86-64
  ))
 
- (load "tests3.ss")
+(load "tests3.ss")
+(test-all)

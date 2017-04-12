@@ -26,7 +26,7 @@
 
 (load "tests3.ss")
 (tracer #t)
-;(test-all #t #t)
+(test-all #t #t)
 
 ;;(define test-nth 0)
 ;;(test-one (list-ref tests 48) #t #t)

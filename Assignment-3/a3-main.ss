@@ -18,10 +18,32 @@
  (compiler-passes '(
    verify-scheme
    finalize-locations
+   expose-frame-var
    expose-basic-blocks
    flatten-program
-   ;generate-x86-64
+   generate-x86-64
  ))
 
 (load "tests3.ss")
-(test-all)
+(tracer #t)
+;(test-all #t #t)
+
+;;(define test-nth 0)
+;;(test-one (list-ref tests 48) #t #t)
+
+(define (test-individual n)
+  (if (equal? n 100)
+      (void)
+      (begin
+        (display n)(newline)
+        (test-one (list-ref tests n) #t #t)
+        (test-individual (+ n 1)))))
+;;(test-individual 0)
+
+(define (compiler x)
+  (generate-x86-64
+   (flatten-program
+    (expose-basic-blocks
+     (expose-frame-var
+      (finalize-locations
+       (verify-scheme x)))))))

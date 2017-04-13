@@ -465,26 +465,26 @@
     [(emit?) ($test-one *last-input-expr* emit? #t #f)]
     [(emit? verbose?) ($test-one *last-input-expr* emit? verbose? #f)]))
 
-(define fmt
-  (lambda (x n)
-    (define digit
-      (lambda (d)
-        (string-ref "000123456789" (+ d 2))))
-    (let ([x (exact->inexact x)])
-      (let ([ls (#%\#flonum->digits x 10 'absolute (- n))])
-        (let ([s (car ls)] [e (cadr ls)] [digits (cddr ls)])
-          (let ([p (open-output-string)])
-            (when (= s -1) (write-char #\- p))
-            (when (< e 0) (write-char #\0 p))
-            (when (< e -1)
-              (write-char #\. p)
-              (display (make-string (min n (- -1 e)) #\0) p))
-            (let f ([digits digits] [e e])
-              (when (>= e (- n))
-                (when (= e -1) (write-char #\. p))
-                (write-char (digit (car digits)) p)
-                (f (cdr digits) (- e 1))))
-            (get-output-string p)))))))
+;; (define fmt
+;;   (lambda (x n)
+;;     (define digit
+;;       (lambda (d)
+;;         (string-ref "000123456789" (+ d 2))))
+;;     (let ([x (exact->inexact x)])
+;;       (let ([ls (#%\#flonum->digits x 10 'absolute (- n))])
+;;         (let ([s (car ls)] [e (cadr ls)] [digits (cddr ls)])
+;;           (let ([p (open-output-string)])
+;;             (when (= s -1) (write-char #\- p))
+;;             (when (< e 0) (write-char #\0 p))
+;;             (when (< e -1)
+;;               (write-char #\. p)
+;;               (display (make-string (min n (- -1 e)) #\0) p))
+;;             (let f ([digits digits] [e e])
+;;               (when (>= e (- n))
+;;                 (when (= e -1) (write-char #\. p))
+;;                 (write-char (digit (car digits)) p)
+;;                 (f (cdr digits) (- e 1))))
+;;             (get-output-string p)))))))
 
 (define-syntax time-it
   (syntax-rules ()

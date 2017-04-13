@@ -331,3 +331,4 @@
               ,(rewrite-opnds x)))
           rax)]
       [else x])))
+(define error-handler (lambda args args))

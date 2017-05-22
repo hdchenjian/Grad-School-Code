@@ -148,9 +148,6 @@
     x))
 
 
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;; This section of the code simply prepares a live-set i.e the set of variables live before an assignment instruction is encountered
 ;; The update conflict table is responsible for updating the conflict table ct using side effects
 ;; if fv0 is current Lhs and {a.1 b.2 c.3} is live set we add the live-set to fv0's conflict
@@ -235,9 +232,6 @@
             `(letrec ([,label* (lambda () ,body*)] ...) ,body)]
            [,x (error who "invalid Program ~s" x)])))
 
-
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
 
 ;; This pass wraps around a ulocals form around the body expression it doesnt process the Tail expressions at all
 

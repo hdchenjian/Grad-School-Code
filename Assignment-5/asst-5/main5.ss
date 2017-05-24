@@ -29,5 +29,5 @@
                    ))
 (tracer #t)
 (load "tests5.ss")
-;;(test-all #t #t)
-(test-one (list-ref tests 14))
+(test-all #t #t)
+;;(test-one (list-ref tests 0))

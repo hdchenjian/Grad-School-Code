@@ -248,9 +248,6 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;;select-instructions does a signifcant rewrite of the code where necessary, the x86-64 architecture imposes certian limitations on the instructions
 ;;we are allowed to use, but the same cant be imposed on a programmer who writes programs, the select-instructions pass converts certian blocks of codes which may
 ;;be incompatible by x-86-64 instruction standards to a compatible form, the bulk of the rewrite has to be done when instructions of the form (set! x y) or
@@ -268,18 +265,23 @@
              [(begin ,[Effect -> ef* elocals*] ...) (values (make-begin `(,ef* ...)) (apply append elocals*))]
              [(set! ,lhs (,binop ,rhs1 ,rhs2))
               (cond
-               [(eq? lhs rhs1) (complex-assignment-helper ef)]				;Handles expressions of the form (set! fv0 (+ fv0 rax))
+               ;Handles expressions of the form (set! fv0 (+ fv0 rax))
+               [(eq? lhs rhs1) (complex-assignment-helper ef)]
                [(and (commutative? binop) (eq? lhs rhs2)) (complex-assignment-helper `(set! ,lhs (,binop ,rhs2 ,rhs1)))]
                [(eq? lhs rhs2) 
-                (let* ((new-unspillable-variable (unique-name 't)) (stmt `(set! ,new-unspillable-variable (,binop ,new-unspillable-variable ,rhs2))))
+                (let* ((new-unspillable-variable (unique-name 't))
+                       (stmt `(set! ,new-unspillable-variable (,binop ,new-unspillable-variable ,rhs2))))
                   (let-values ([(complex-assignment complex-assignment-locals) (complex-assignment-helper stmt)])
                     (values  `(begin (set! ,new-unspillable-variable ,rhs1)
                                      ,complex-assignment
-                                     (set! ,lhs ,new-unspillable-variable)) (append complex-assignment-locals `(,new-unspillable-variable)))))]
+                                     (set! ,lhs ,new-unspillable-variable))
+                             (append complex-assignment-locals `(,new-unspillable-variable)))))]
                [else
                 (let-values ([(single-assignment single-assignment-locals) (simple-assignment `(set! ,lhs ,rhs1))]
-                             [(complex-assignment complex-assignment-locals) (complex-assignment-helper `(set! ,lhs (,binop ,lhs ,rhs2)))])
-                  (values `(begin ,single-assignment ,complex-assignment) (union single-assignment-locals complex-assignment-locals)))])] 
+                             [(complex-assignment complex-assignment-locals)
+                              (complex-assignment-helper `(set! ,lhs (,binop ,lhs ,rhs2)))])
+                  (values `(begin ,single-assignment ,complex-assignment)
+                          (union single-assignment-locals complex-assignment-locals)))])]
              [(set! ,x ,y) (simple-assignment ef)])))
   (define simple-assignment
     (lambda (exp)
@@ -299,26 +301,33 @@
                       (and (frame-var? lhs) (or (int64? rhs) (label? rhs))) 
                       );(or (int64? rhs) (label? rhs))) 
                   (let ((new-unspillable (unique-name 't)))
-                    (values `(begin (set! ,new-unspillable ,rhs) (set! ,lhs (,binop ,lhs ,new-unspillable))) (list new-unspillable))) 
+                    (values `(begin (set! ,new-unspillable ,rhs) (set! ,lhs (,binop ,lhs ,new-unspillable)))
+                            (list new-unspillable))) 
                   (values exp '()))]
              [(set! ,lhs (,binop ,lhs ,rhs)) 
               (guard (and (eq? binop '*) (frame-var? lhs)))
-              (let* ((new-unspillable-variable (unique-name 't)) (stmt `(set! ,new-unspillable-variable (,binop ,new-unspillable-variable ,rhs))))
+              (let* ((new-unspillable-variable (unique-name 't))
+                     (stmt `(set! ,new-unspillable-variable (,binop ,new-unspillable-variable ,rhs))))
                 (let-values ([(complex-assignment complex-assignment-locals) (complex-assignment-helper stmt)])
                   (values `(begin (set! ,new-unspillable-variable ,lhs)
                                   ,complex-assignment
-                                  (set! ,lhs ,new-unspillable-variable)) (append complex-assignment-locals `(,new-unspillable-variable)))))]
+                                  (set! ,lhs ,new-unspillable-variable))
+                          (append complex-assignment-locals `(,new-unspillable-variable)))))]
              [(set! ,lhs (,binop ,lhs ,rhs)) (guard (eq? binop 'sra)) (values exp '())]																		
              [(set! ,lhs (,binop ,lhs ,rhs)) (guard (or (uvar? lhs) (register? lhs))) (values exp '())])))
   (define relop-helper
     (lambda (x)
       (match x
              [(,relop ,triv1 ,triv2) (guard (or (uvar? triv1) (register? triv1))) (values `(,relop ,triv1 ,triv2) '())]
-             [(,relop ,triv1 ,triv2) (guard (and (frame-var? triv1) (not (frame-var? triv2)))) (values `(,relop ,triv1 ,triv2) '())]
-             [(,relop ,triv1 ,triv2) (guard (or (and (frame-var? triv1) (frame-var? triv2)) (and (int32? triv1) (int32? triv2)))) 
+             [(,relop ,triv1 ,triv2) (guard (and (frame-var? triv1) (not (frame-var? triv2))))
+              (values `(,relop ,triv1 ,triv2) '())]
+             [(,relop ,triv1 ,triv2)
+              (guard (or (and (frame-var? triv1) (frame-var? triv2)) (and (int32? triv1) (int32? triv2)))) 
               (let ((new-unspillable (unique-name 't)))
-                (values `(begin (set! ,new-unspillable ,triv1) (,relop ,new-unspillable ,triv2)) (list new-unspillable)))]
-             [(,relop ,triv1 ,triv2) (guard (and (int32? triv1) (not (int32? triv2)))) (values `(,(operator^ relop) ,triv2 ,triv1) '())])))
+                (values `(begin (set! ,new-unspillable ,triv1) (,relop ,new-unspillable ,triv2))
+                        (list new-unspillable)))]
+             [(,relop ,triv1 ,triv2) (guard (and (int32? triv1) (not (int32? triv2))))
+              (values `(,(operator^ relop) ,triv2 ,triv1) '())])))
   (define Pred 
     (lambda (x)
       (match x
@@ -326,7 +335,7 @@
              [(false) (values '(false) '())]
              [(if ,[Pred -> pred plocals] ,[Pred -> conseq clocals] ,[Pred -> alt alocals])
               (values `(if ,pred ,conseq ,alt) (append plocals clocals alocals))]
-             [(begin ,[Effect -> ef* elocals* ] ...,[Pred -> tail plocals]) 
+             [(begin ,[Effect -> ef* elocals* ] ...,[Pred -> tail plocals])
               (values (make-begin `(,ef* ..., tail)) (apply append (cons plocals elocals*)))]
              [(,relop ,conseq ,alt) (relop-helper x)])))
   (define Tail 
@@ -357,8 +366,6 @@
             `(letrec ([,label* (lambda () ,body*)] ...) ,body)]
            [,x (error who "invalid Program ~s" x)])))
 
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
 
 ;; This section of the code simply prepares a live-set i.e the set of variables live before an assignment instruction is encountered
 ;; The update conflict table is responsible for updating the conflict table ct using side effects
@@ -394,10 +401,10 @@
               (Pred test (union live* c-live*) (union live* a-live*) ct)]
              [(begin ,ef* ... ,[live*]) (Effect* ef* live* ct)]
              [(set! ,lhs (,binop ,[Triv -> x-live*] ,[Triv -> y-live*])) 
-              (let* ((new-live-set y-live*) (resolution (resolve lhs live* ct)))							
+              (let* ((new-live-set y-live*) (resolution (resolve lhs live* ct)))
                 (if (null? new-live-set) 
                     live* (set-cons new-live-set live*)))]
-             [(set! ,lhs ,[Triv -> var]) 
+             [(set! ,lhs ,[Triv -> var])
               (let* ((new-live-set (remq lhs live*)) (resolution (resolve lhs live* ct)))
                 (if (null? var) new-live-set (set-cons var new-live-set)))]
              [,x (error who "invalid Effect list ~s" x)])))
@@ -454,8 +461,7 @@
                   `(locals (,local* ...) 
                            (ulocals (,ulocal* ...)
                                     (locate (,home* ...)
-                                            (frame-conflict ,fv-ct
-                                                            (register-conflict ,ct ,tail)))))))]
+                                            (frame-conflict ,fv-ct (register-conflict ,ct ,tail)))))))]
              [(locate (,home* ...) ,tail) `(locate (,home* ...) ,tail)]
              [,x (error who "invalid Body ~s" x)])))
   (lambda (x)
@@ -464,8 +470,6 @@
             `(letrec ([,label* (lambda () ,body*)] ...) ,body)]
            [,x (error who "invalid Program ~s" x)])))
 
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
 
 ;;Program	---->	(letrec ([label (lambda () Body)]*) Body)
 ;;Body	---->	(locals (uvar*)

@@ -382,8 +382,11 @@
         (cons var (map (lambda (x)
                          (if (uvar? x)
                              (let ((x-conflict-entry (assq x ct)))
-                               (set-cdr! x-conflict-entry (union (list var) (if (null? (cdr x-conflict-entry)) '() (cdr x-conflict-entry))))))
-                         x) live-vars)))))
+                               (set-cdr!
+                                x-conflict-entry
+                                (union (list var) (if (null? (cdr x-conflict-entry)) '() (cdr x-conflict-entry))))))
+                         x)
+                       live-vars)))))
   (define Triv
     (lambda (x)
       (if (or (register? x) (uvar? x)) x '())))
@@ -402,7 +405,7 @@
              [(begin ,ef* ... ,[live*]) (Effect* ef* live* ct)]
              [(set! ,lhs (,binop ,[Triv -> x-live*] ,[Triv -> y-live*])) 
               (let* ((new-live-set y-live*) (resolution (resolve lhs live* ct)))
-                (if (null? new-live-set) 
+                (if (null? new-live-set)
                     live* (set-cons new-live-set live*)))]
              [(set! ,lhs ,[Triv -> var])
               (let* ((new-live-set (remq lhs live*)) (resolution (resolve lhs live* ct)))
@@ -417,7 +420,7 @@
     (lambda (lhs live* ct)
       (cond
        [(null? live*) '()]
-       [(uvar? (car live*)) 
+       [(uvar? (car live*))
         (let* ((var (car live*)) (conflict-entry (assq var ct)))
           (set-cdr! conflict-entry (set-cons lhs (if (null? (cdr conflict-entry)) '() (cdr conflict-entry))))
           (record-conflict lhs (cdr live*) ct))]
@@ -500,13 +503,15 @@
 
 
 (define-who assign-registers
-  (define remove-occurence						;;Removes the occurence of a var from var* and returns the list
+  ;;Removes the occurence of a var from var* and returns the list
+  (define remove-occurence
     (lambda (var ct)
       (map (lambda (x) 
              (cond
               [(eq? (car x) var) x]
               [else (remq var x)])) ct)))
-  (define replace																		;;Replaces the occurences of variables in the conflict-list with the register-homes
+  ;;Replaces the occurences of variables in the conflict-list with the register-homes
+  (define replace
     (lambda (allocations ct)
       (cond 
        [(null? allocations) ct]
@@ -530,7 +535,8 @@
   (define num-conflicts
     (lambda (var ct)
       (length (cdr (assq var ct)))))
-  (define pick-min																										;;Picks a node with least number of conflicts like the min function
+  ;;Picks a node with least number of conflicts like the min function
+  (define pick-min
     (lambda (var degree var* ct)
       (cond
        [(null? var*) var]
@@ -563,9 +569,7 @@
                    results 
                    (let ((assign-register (car remaining-registers)))
                      (cons (list current-var assign-register) results))))])))
-  (define get-replacement
-    (lambda (var entry)
-      (list var (car (difference registers entry)))))
+  
   (define Body
     (lambda (x)
       (match x
@@ -603,9 +607,6 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-;;---------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;; Checks to see if all variables have got a home, and basically decides wether compiler should go on with allocation or stop
 
 (define-who everybody-home?
@@ -626,17 +627,16 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-
 (define-who assign-frame
-  (define remove-occurence						;;Removes the occurence of a var from var* and returns the list
+  ;;Removes the occurence of a var from var* and returns the list
+  (define remove-occurence
     (lambda (var ct)
       (map (lambda (x) 
              (cond
               [(eq? (car x) var) x]
               [else (remq var x)])) ct)))
-  (define replace																		;;Replaces the occurences of variables in the conflict-list with the register-homes
+  ;;Replaces the occurences of variables in the conflict-list with the register-homes
+  (define replace
     (lambda (allocations ct)
       (cond 
        [(null? allocations) ct]
@@ -692,11 +692,7 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;;Replaces all variables that have been allocated a frame with the appropriate frame variables
-
 (define-who finalize-frame-locations
   (define Triv
     (lambda (env)
@@ -753,12 +749,8 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;; This pass discards the Live* list included in each call.
 ;; This is done by the last match clause in the Tail statement
-
 (define-who discard-call-live
   (define Tail
     (lambda (tail)
@@ -778,9 +770,6 @@
             `(letrec ([,label* (lambda () ,bd*)] ...) ,bd)]
            [,x (error who "invalid Program ~s" x)])))
 
-
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
 
 ;; Program	---->	(letrec ([label (lambda () Body)]*) Body)
 ;; Body	---->	(locate ([uvar reg]*) Tail)
@@ -803,8 +792,6 @@
 
 ;;This is the output produced by the discard-call-live
 ;;All occurences of uvar are replaced by the reg in the body, so now we have only regs in the instructions of the program
-
-
 (define finalize-locations
   (lambda (prog)
     (define Program
@@ -855,11 +842,7 @@
     (Program prog)))
 
 
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;;Responsible for exposing all frame vars..with a displacement operand
-
 (define-who expose-frame-var
   (define Triv
     (lambda (t)
@@ -904,9 +887,6 @@
            [,program (error who "invalid syntax for Program: ~s" program)])))
 
 
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------	
-
 ;;Program	---->	(letrec ([label (lambda () Tail)]*) Tail)
 ;;Tail	---->	(Triv)
 ;;	|	(if Pred Tail Tail)
@@ -934,8 +914,9 @@
       (lambda (x)
         (match x
                [(letrec ([,label* (lambda () ,[Tail -> bindings* tail*])] ...) ,[Tail -> binding tail])
-                `(letrec ,(fold-right (lambda(x y z ls) (append (append (bind-function x y) z) ls)) binding label* tail* bindings*) ,tail)
-                ])))
+                `(letrec ,(fold-right (lambda(x y z ls) (append (append (bind-function x y) z) ls))
+                                      binding label* tail* bindings*)
+                   ,tail)])))
     (define Tail
       (lambda (x)
         (match x
@@ -943,7 +924,10 @@
                 (let ((conseq-label (unique-label 'c))
                       (alt-label (unique-label 'a)))
                   (let-values ([(bindings statements) (Pred condition conseq-label alt-label)]) 
-                    (values (append cbinding abinding bindings (bind-function conseq-label conseq) (bind-function alt-label alt)) statements)))]
+                    (values (append cbinding abinding bindings
+                                    (bind-function conseq-label conseq)
+                                    (bind-function alt-label alt))
+                            statements)))]
                [(begin ,effect* ...,[Tail -> binding tail])
                 (let-values ([(bindings statements) (Effect* effect* (list tail))])
                   (values (append binding bindings) statements))]		
@@ -952,7 +936,7 @@
       (lambda (ef* code)
         (match ef*
                [() (values '() (if (null? code) '() (make-begin (if (list? (car code)) code `(,code)))))]
-               [(,effect* ...,effect) (Effect effect* effect code)]))) 
+               [(,effect* ...,effect) (Effect effect* effect code)])))
     (define Effect
       (lambda (before* expr after*)
         (match expr
@@ -967,7 +951,9 @@
                        [(e-bindings e-statements) (Effect* before* (list p-statements))])
                     (values (append (bind-function conseq-label c-statements) 
                                     (bind-function alt-label a-statements)
-                                    (bind-function jmp-label (if (null? after*) '() (make-begin after*))) p-bindings c-bindings a-bindings e-bindings) e-statements)))]
+                                    (bind-function jmp-label (if (null? after*) '() (make-begin after*)))
+                                    p-bindings c-bindings a-bindings e-bindings)
+                            e-statements)))]
 
                [(set! ,loc ,triv) (Effect* before* (append (list expr) (if (list? (car after*)) after* `(,after*))))]
                [(begin ,effect* ...) 
@@ -995,15 +981,15 @@
                        [(c-bindings c-statements) (Pred conseq true-label false-label)]
                        [(a-bindings a-statements) (Pred alt true-label false-label)])
                     (values (append (bind-function conseq-label c-statements) 
-                                    (bind-function alt-label a-statements) p-bindings c-bindings a-bindings) p-statements)))])))
-    (define bind-function							;;Creates a letrec binding of form [(label (lambda() body))]
+                                    (bind-function alt-label a-statements)
+                                    p-bindings c-bindings a-bindings)
+                            p-statements)))])))
+    ;;Creates a letrec binding of form [(label (lambda() body))]
+    (define bind-function
       (lambda (label statement)
         `((,label (lambda () ,statement)))))						
     (Program prog)))
 
-
-;;------------------------------------------------------------------------------------------------------------------------------------------------
-;;------------------------------------------------------------------------------------------------------------------------------------------------
 
 ;;Program	---->	(letrec ([label (lambda () Tail)]*) Tail)
 ;;Tail	---->	(Triv)
@@ -1123,6 +1109,3 @@
                [(set! ,v1 ,v2) (emit 'movq v2 v1)]
                [,label (emit-label label)])))
     (Program x)))
-
-
-

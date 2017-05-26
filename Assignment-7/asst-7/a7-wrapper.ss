@@ -793,3 +793,6 @@
               ,(rewrite-opnds x)))
           ,return-value-register)]
       [else x])))
+
+
+(define error-handler (lambda args args))

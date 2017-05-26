@@ -412,33 +412,40 @@
 
 (define max-frame-var
   (make-parameter 100
-    (let ([next 0])
-      (lambda (n)
-        (unless (and (fixnum? n) (fx>= n 0))
-          (error 'max-frame-var "invalid max ~s" n))
-        (when (fx>= n next)
-          (do ([i next (fx+ i 1)])
-              ((fx>= i n))
-            (let ([fvi (string->symbol (format "fv~s" i))])
-              (eval `(define-syntax ,fvi
-                       (cons 'macro!
-                         (lambda (x)
-                           (syntax-case x ()
-                             [var (identifier? #'var)
-                              (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
-                                #'(mref (- fp $fp-offset) ,(fxsll i align-shift)))]
-                             [(set! var val)
-                              (and (eq? (syntax->datum #'set!) 'set!) (identifier? #'var))
-                              (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
-                                #'(mset! (- fp $fp-offset)
-                                         ,(fxsll i align-shift)
-                                         val))]
-                             [(var x ...)
-                              (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
-                                #'((mref (- fp $fp-offset) ,(fxsll i align-shift)) x ...))])))))
-              (putprop fvi 'frame-index i)))
-          (set! next n))
-        n))))
+                  (lambda (n)
+                    (assert (integer? n))
+                    (assert (positive? n))
+                    n)))
+
+;; (define max-frame-var
+;;   (make-parameter 100
+;;     (let ([next 0])
+;;       (lambda (n)
+;;         (unless (and (fixnum? n) (fx>= n 0))
+;;           (error 'max-frame-var "invalid max ~s" n))
+;;         (when (fx>= n next)
+;;           (do ([i next (fx+ i 1)])
+;;               ((fx>= i n))
+;;             (let ([fvi (string->symbol (format "fv~s" i))])
+;;               (eval `(define-syntax ,fvi
+;;                        (cons 'macro!
+;;                          (lambda (x)
+;;                            (syntax-case x ()
+;;                              [var (identifier? #'var)
+;;                               (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
+;;                                 #'(mref (- fp $fp-offset) ,(fxsll i align-shift)))]
+;;                              [(set! var val)
+;;                               (and (eq? (syntax->datum #'set!) 'set!) (identifier? #'var))
+;;                               (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
+;;                                 #'(mset! (- fp $fp-offset)
+;;                                          ,(fxsll i align-shift)
+;;                                          val))]
+;;                              [(var x ...)
+;;                               (with-syntax ([fp (datum->syntax #'var frame-pointer-register)])
+;;                                 #'((mref (- fp $fp-offset) ,(fxsll i align-shift)) x ...))])))))
+;;               (putprop fvi 'frame-index i)))
+;;           (set! next n))
+;;         n))))
 
 (define frame-var?
   (lambda (x)
@@ -448,10 +455,16 @@
   (lambda (fv)
     (getprop fv 'frame-index)))
 
-(define index->frame-var 
-  (lambda (n)
-    (when (> n (max-frame-var)) (max-frame-var n))
-    (string->symbol (string-append "fv" (number->string n)))))
+;; (define index->frame-var 
+;;   (lambda (n)
+;;     (when (> n (max-frame-var)) (max-frame-var n))
+;;     (string->symbol (string-append "fv" (number->string n)))))
+
+(define (index->frame-var n)
+  (when (> n (max-frame-var))
+        (error 'index->frame "index not in range of max-frame-var"
+               `(index ,n) `(max ,(max-frame-var))))
+  (string->symbol (format "fv~d" n)))
 
 ;;; labels
 

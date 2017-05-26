@@ -22,6 +22,6 @@
 (tracer #t)
 
 
-(test-one (list-ref tests 0))
+(test-one (list-ref tests 37))
 ;;(test-all)
-(test-all #t #t)
+;(test-all #t #t)

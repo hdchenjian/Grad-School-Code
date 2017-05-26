@@ -32,7 +32,7 @@
 ;;;           |  (if <Pred> <Value> <Value>)
 ;;;           |  (begin <Effect>* <Value>)
 ;;;  Triv    --> <uvar> | <int64> | <label>
-;;;  
+;;;
 ;;;  Where uvar is symbol.n where (n >= 0)
 ;;;        label is symbol$n where (n >= 0)
 ;;;        binop is +, -, *, logand, logor, or sra
@@ -40,7 +40,7 @@
 ;;;
 ;;;  We still have a couple constraints based on our machine and
 ;;;  testing framework. Namely, we expect calls target values to
-;;;  evaluate to uvars or labels, and we expect computations to be 
+;;;  evaluate to uvars or labels, and we expect computations to be
 ;;;  done with uvars or integers.
 ;;;
 ;;;  Note that we also expect the sra binop to have a uint6 in the
@@ -122,7 +122,7 @@
              [(,binop ,[(Value label* uvar*) -> x] ,[(Value label* uvar*) -> y])
               (guard (memq binop '(+ - * logand logor sra)))
               (void)]
-             [(,[(Value label* uvar*) -> rator] 
+             [(,[(Value label* uvar*) -> rator]
                ,[(Value label* uvar*) -> rand*] ...)
               (void)]
              [,[(Triv label* uvar*) -> triv] (void)])))
@@ -179,7 +179,7 @@
     (define trivial?   ;;Checks wether a expression is trivial or not
       (lambda (exp)
         (if (or (uvar? exp) (label? exp) (int64? exp)) #t #f)))
-    (define non-trivial? 
+    (define non-trivial?
       (lambda (exp)
         (not (trivial? exp))))
     (define handle-operands				
@@ -231,7 +231,7 @@
         (match tail-expr
                [(,stmt* ...,tail) stmt*]
                [,triv '()])))	
-    (define make-trivial			;;Makes the arguments trivial 
+    (define make-trivial			;;Makes the arguments trivial
       (lambda (arg)
         (if (trivial? arg) arg
             (let ((new-var (new-t)))
@@ -244,12 +244,15 @@
         (match tail
                [(begin ,[Effect -> ef*] ... , [Tail -> tail-exp]) `(begin ,ef* ... ,tail-exp)]
                [(if ,[Pred -> pred] ,[Tail -> conseq] , [Tail -> alt]) `(if ,pred ,conseq ,alt)]
-               [(,binop ,[Value -> rand1] ,[Value -> rand2]) (guard (memq binop '(+ - * logand logor sra))) (handle-operands binop rand1 rand2)]
+               [(,binop ,[Value -> rand1] ,[Value -> rand2])
+                (guard (memq binop '(+ - * logand logor sra))) (handle-operands binop rand1 rand2)]
                [(,[Value -> value] ,[Value -> value*] ...)
                 (let* ((trivial-tail (map make-trivial `(,value ,value* ...)))
                        (vars (map extract-vars trivial-tail))
                        (stmts (map extract-stmts trivial-tail)))
-                  (make-tail stmts vars))]  ;;Makes the tail expression all statements come before all newly introduced temporaries are passed as arguments
+                  ;;Makes the tail expression all statements come before all newly introduced
+                  ;;temporaries are passed as arguments
+                  (make-tail stmts vars))]
                [,[Triv -> triv] triv])))			
     (match bd
            [(locals (,local* ...) ,[Tail -> tail])
@@ -257,7 +260,7 @@
            [,bd (error who "invalid Body ~s" bd)]))
   (lambda (x)
     (match x
-           [(letrec ([,label* (lambda (,fml** ...) ,[Body -> bd*])] ...) 
+           [(letrec ([,label* (lambda (,fml** ...) ,[Body -> bd*])] ...)
               ,[Body -> bd])
             `(letrec ([,label* (lambda (,fml** ...) ,bd*)] ...) ,bd)]
            [,x (error who "invalid Program ~s" x)])))
@@ -288,10 +291,11 @@
 ;;;	|	(begin Effect* Value)
 ;;;Triv	----->	uvar | int | label
 
-
 (define-who flatten-set!
-  (define make-flatten			;;This function will be called when there is (set! x.1 complex-expression) encountered in Effect we push down the x.1 in begin expression
-    (lambda (var expr) 
+  ;;This function will be called when there is (set! x.1 complex-expression)
+  ;;encountered in Effect we push down the x.1 in begin expression
+  (define make-flatten
+    (lambda (var expr)
       (match expr
              [(begin ,[Effect -> ef*] ... ,val) `(begin ,ef* ... (set! ,var ,val))]
              [(if ,[Pred -> pred] ,conseq ,alt) `(if ,pred ,(make-flatten var conseq) ,(make-flatten var alt))]
@@ -333,9 +337,6 @@
            [,x (error who "invalid Program ~s" x)])))
 
 
-;;--------------------------------------------------------------------------------------------------------------------------------------------------------
-;;--------------------------------------------------------------------------------------------------------------------------------------------------------
-
 ;;;Program	----->	(letrec ([label (lambda (uvar*) Body)]*) Body)
 ;;;Body	----->	(locals (uvar*) Tail)
 ;;;Tail	----->	Triv
@@ -369,7 +370,7 @@
   (define assign-parameters ;;assigns registers and frame-locations to formal parameters
     (lambda (val)
       (cond
-       [(< (length assigned-registers) (length parameter-registers)) 
+       [(< (length assigned-registers) (length parameter-registers))
         (let ((assignment (car (difference parameter-registers assigned-registers))))
           (set! assigned-registers (cons assignment assigned-registers))
           `(set! ,val ,assignment))]
@@ -377,14 +378,15 @@
         (let ((assignment 'fv0))
           (set! assigned-frame-locations (cons assignment assigned-frame-locations))
           `(set! ,val ,assignment))]
-       [else (let* ((max-val (find-max (map (lambda (z) (if (frame-var? z) (frame-var->index z) '-1)) assigned-frame-locations))) 
+       [else (let* ((max-val (find-max (map (lambda (z) (if (frame-var? z) (frame-var->index z) '-1))
+                                            assigned-frame-locations)))
                     (assignment (index->frame-var (+ 1 max-val))))
                (set! assigned-frame-locations (cons assignment assigned-frame-locations))
                `(set! ,val ,assignment))])))
   (define assign-parameters^
     (lambda (val)
       (cond
-       [(< (length assigned-registers) (length parameter-registers)) 
+       [(< (length assigned-registers) (length parameter-registers))
         (let ((assignment (car (difference parameter-registers assigned-registers))))
           (set! assigned-registers (cons assignment assigned-registers))
           `(set! ,assignment ,val))]
@@ -392,7 +394,8 @@
         (let ((assignment 'fv0))
           (set! assigned-frame-locations (cons assignment assigned-frame-locations))
           `(set! ,assignment ,val))]
-       [else (let* ((max-val (find-max (map (lambda (z) (if (frame-var? z) (frame-var->index z) '-1)) assigned-frame-locations))) 
+       [else (let* ((max-val (find-max (map (lambda (z) (if (frame-var? z) (frame-var->index z) '-1))
+                                            assigned-frame-locations)))
                     (assignment (index->frame-var (+ 1 max-val))))
                (set! assigned-frame-locations (cons assignment assigned-frame-locations))
                `(set! ,assignment ,val))])))
@@ -427,7 +430,7 @@
              [(begin ,[Effect -> ef*] ... , tail-exp)
               (let ((expression (Tail tail-exp rp)))
                 (make-begin `(,ef* ... ,expression)))]
-             [(if ,[Pred -> pred] ,conseq ,alt) 
+             [(if ,[Pred -> pred] ,conseq ,alt)
               (let ((conseq-expr (Tail conseq rp))
                     (alt-expr (Tail alt rp)))
                 `(if ,pred ,conseq-expr ,alt-expr))]
@@ -436,13 +439,14 @@
                     (return-calling-expr `(,rp ,frame-pointer-register ,return-value-register)))
                 `(begin ,return-value-expr ,return-calling-expr))]
              [(,triv ,loc* ...)
-              (let ((formal-assignments (map assign-parameters^ loc*)) 
+              (let ((formal-assignments (map assign-parameters^ loc*))
                     (return-exp `(set! ,return-address-register ,rp))
-                    (return-registers (append (list return-address-register frame-pointer-register) (union assigned-registers assigned-frame-locations))))
+                    (return-registers (append (list return-address-register frame-pointer-register)
+                                              (union assigned-registers assigned-frame-locations))))
                 (set! assigned-registers '())
                 (set! assigned-frame-locations '())									
                 `(begin ,@formal-assignments ,return-exp ,(cons triv return-registers)))]
-             [,triv 
+             [,triv
               (let ((return-value-expr (store-return-value tail))
                     (return-calling-expr `(,rp ,frame-pointer-register ,return-value-register)))
                 `(begin ,return-value-expr ,return-calling-expr))])))		
@@ -450,11 +454,16 @@
     (match bd
            [(locals (,locals* ...) ,tail)
             (let* ((return-var (unique-name 'rp)) ;Storing the return address
-                   (formal-assignments (map assign-parameters fml*)) ;;assign all parameters to registers or frame variables
-                   (begin-expr (cons `(set! ,return-var ,return-address-register) formal-assignments)) ;;add the (set! rp return-reg) in front
-                   (tail-expr (make-begin `(,@begin-expr ,tail))))	;;make a begin expression with the existing tail appended
-              (set! assigned-registers '())										;;keeping track of registers assigned to parameters has been done using side effects
-              (set! assigned-frame-locations '())							;;keeping track of frames assigned to parameters has been done using side effects
+                   ;;assign all parameters to registers or frame variables
+                   (formal-assignments (map assign-parameters fml*))
+                   ;;add the (set! rp return-reg) in front
+                   (begin-expr (cons `(set! ,return-var ,return-address-register) formal-assignments))
+                   ;;make a begin expression with the existing tail appended
+                   (tail-expr (make-begin `(,@begin-expr ,tail))))
+              ;;keeping track of registers assigned to parameters has been done using side effects
+              (set! assigned-registers '())
+              ;;keeping track of frames assigned to parameters has been done using side effects
+              (set! assigned-frame-locations '())
               `(locals (,locals* ... ,return-var ,fml* ...) ,(Tail tail-expr return-var)))]
            [,bd (error who "invalid Body ~s" bd)]))
   (lambda (x)
@@ -463,4 +472,3 @@
             (let ([bd* (map Body bd* fml**)] [bd (Body bd '())])
               `(letrec ([,label* (lambda () ,bd*)] ...) ,bd))]
            [,x (error who "invalid Program ~s" x)])))
-

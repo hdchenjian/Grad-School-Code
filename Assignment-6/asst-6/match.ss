@@ -1,72 +1,37 @@
-;;; match.ss
+;;; Copyright (c) 2000-2008 Dan Friedman, Erik Hilsdale, and Kent Dybvig
+;;;
+;;; Permission is hereby granted, free of charge, to any person
+;;; obtaining a copy of this software and associated documentation files
+;;; (the "Software"), to deal in the Software without restriction,
+;;; including without limitation the rights to use, copy, modify, merge,
+;;; publish, distribute, sublicense, and/or sell copies of the Software,
+;;; and to permit persons to whom the Software is furnished to do so,
+;;; subject to the following conditions:
+;;; 
+;;; The above copyright notice and this permission notice shall be
+;;; included in all copies or substantial portions of the Software.
+;;; 
+;;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+;;; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+;;; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+;;; NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+;;; BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+;;; ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;;; SOFTWARE.
 
-;;; This program was originally designed and implemented by Dan
-;;; Friedman.  It was redesigned and implemented by Erik Hilsdale;
-;;; some improvements were suggested by Steve Ganz.  Additional
-;;; modifications were made by Kent Dybvig.
+;;; This program was originally designed and implemented by Dan Friedman. 
+;;; It was redesigned and reimplemented by Erik Hilsdale.  Additional
+;;; modifications were made by Kent Dybvig, Steve Ganz, and Aziz Ghuloum.
+;;; Parts of the implementation were adapted from the portable syntax-case
+;;; implementation written by Kent Dybvig, Oscar Waddell, Bob Hieb, and
+;;; Carl Bruggeman and is used by permission of Cadence Research Systems.
 
-;; [3 February 2008]
-;; rkd modified overloaded quasiquote to handle expressions followed
-;; by more than one ellipsis.
+;;; A change log appears at end of this file.
 
-;; [3 February 2008]
-;; aziz modified mapper to quote the inserted empty lists
+;;; A brief description of match is given at:
 
-;; [3 March 2007]
-;; aziz minor change to eagerly catch malformed clauses (e.g. a clause
-;; that's not a list of 2 or more subforms).
-
-;; [13 March 2002]
-;; rkd added following change by Friedman and Ganz to the main source
-;; code thread and fixed a couple of minor problems.
-
-;; [9 March 2002]
-;; Dan Friedman and Steve Ganz added the ability to use identical pattern
-;; variables.  The patterns represented by the variables are compared
-;; using the value of the parameter match-equality-test, which defaults
-;; to equal?.
-;;
-;; > (match '(1 2 1 2 1)
-;;     [(,a ,b ,a ,b ,a) (guard (number? a) (number? b)) (+ a b)])
-;; 3
-;; ;;
-;; > (match '((1 2 3) 5 (1 2 3))
-;;     [((,a ...) ,b (,a ...)) `(,a ... ,b)])
-;; (1 2 3 5)
-;; ;;
-;; > (parameterize ([match-equality-test (lambda (x y) (equal? x (reverse y)))])
-;;     (match '((1 2 3) (3 2 1))   
-;;       [(,a ,a) 'yes]
-;;       [,oops 'no]))
-;; yes
-
-;; [10 Jan 2002]
-;; eh fixed bug that caused (match '((1 2 3 4)) (((,a ... ,d) . ,x) a)) to
-;; blow up.  The bug was caused by a bug in the sexp-dispatch procedure
-;; where a base value empty list was passed to an accumulator from inside
-;; the recursion, instead of passing the old value of the accumulator.
-
-;; [14 Jan 2001]
-;; rkd added syntax checks to unquote pattern parsing to weed out invalid
-;; patterns like ,#(a) and ,[(vector-ref d 1)].
-
-;; [14 Jan 2001]
-;; rkd added ,[Cata -> Id* ...] to allow specification of recursion
-;; function.  ,[Id* ...] recurs to match; ,[Cata -> Id* ...] recurs
-;; to Cata.
-
-;; [14 Jan 2001]
-;; rkd tightened up checks for ellipses and nested quasiquote; was comparing
-;; symbolic names, which, as had been noted in the source, is a possible
-;; hygiene bug.  Replaced error call in guard-body with syntax-error to
-;; allow error to include source line/character information.
-
-;; [13 Jan 2001]
-;; rkd fixed match patterns of the form (stuff* ,[x] ... stuff+), which
-;; had been recurring on subforms of each item rather than on the items
-;; themselves.
-
-;; Previous changelog listings at end of file.
+;;;   http://www.cs.indiana.edu/chezscheme/match/
 
 ;;; ============================================================
 
@@ -104,6 +69,7 @@
          (trace-match match-help match-help1 clause-body let-values**
            guard-body convert-pat mapper my-backquote extend-backquote
            sexp-dispatch)
+         (with-ellipsis-aware-quasiquote my-backquote)
          match-equality-test)
 
 (import scheme)
@@ -119,31 +85,31 @@
 (define-syntax match+
   (lambda (x)
     (syntax-case x ()
-      [(_ (ThreadedId ...) Exp Clause ...)
+      [(k (ThreadedId ...) Exp Clause ...)
        #'(let f ((ThreadedId ThreadedId) ... (x Exp))
-           (match-help _ f x (ThreadedId ...) Clause ...))])))
+           (match-help k f x (ThreadedId ...) Clause ...))])))
 
 (define-syntax match
   (lambda (x)
     (syntax-case x ()
-      [(_ Exp Clause ...)
+      [(k Exp Clause ...)
        #'(let f ((x Exp))
-           (match-help _ f x () Clause ...))])))
+           (match-help k f x () Clause ...))])))
 
 (define-syntax trace-match+
   (lambda (x)
     (syntax-case x ()
-      [(_ (ThreadedId ...) Name Exp Clause ...)
+      [(k (ThreadedId ...) Name Exp Clause ...)
        #'(letrec ((f (trace-lambda Name (ThreadedId ... x)
-                       (match-help _ f x (ThreadedId ...) Clause ...))))
+                       (match-help k f x (ThreadedId ...) Clause ...))))
            (f ThreadedId ... x))])))
 
 (define-syntax trace-match
   (lambda (x)
     (syntax-case x ()
-      [(_ Name Exp Clause ...)
+      [(k Name Exp Clause ...)
        #'(letrec ((f (trace-lambda Name (x)
-                       (match-help _ f x () Clause ...))))
+                       (match-help k f x () Clause ...))))
            (f Exp))])))
 
 ;;; ------------------------------
@@ -215,7 +181,7 @@
        (with-syntax (((Mapper ...)
                       (map (lambda (mycata formals depth)
                              (build-mapper formals
-                               (syntax-object->datum depth)
+                               (syntax->datum depth)
                                (syntax-case mycata ()
                                  [#f #'Cata]
                                  [exp #'exp])
@@ -248,7 +214,7 @@
   (let ()
     (define ellipsis?
       (lambda (x)
-        (and (identifier? x) (literal-identifier=? x #'(... ...)))))
+        (and (identifier? x) (free-identifier=? x #'(... ...)))))
     (define Var?
       (lambda (x)
         (syntax-case x (->)
@@ -387,7 +353,7 @@
   (lambda (x)
     (define ellipsis?
       (lambda (x)
-        (and (identifier? x) (literal-identifier=? x #'(... ...)))))
+        (and (identifier? x) (free-identifier=? x #'(... ...)))))
     (define-syntax with-values
       (syntax-rules ()
         ((_ P C) (call-with-values (lambda () P) C))))
@@ -558,14 +524,24 @@
 (define-syntax extend-backquote
   (lambda (x)
     (syntax-case x ()
-      ((_ Template Exp ...)
-       (with-syntax ((quasiquote
-                       (datum->syntax-object #'Template 'quasiquote)))
-         #'(let-syntax ((quasiquote
+      [(_ Template Exp ...)
+       (with-syntax ([quasiquote (datum->syntax #'Template 'quasiquote)])
+         #'(let-syntax ([quasiquote
                           (lambda (x)
                             (syntax-case x ()
-                              ((_ Foo) #'(my-backquote Foo))))))
-             Exp ...))))))
+                              ((_ Foo) #'(my-backquote Foo))))])
+             Exp ...))])))
+
+(define-syntax with-ellipsis-aware-quasiquote
+  (lambda (x)
+    (syntax-case x ()
+      [(k b1 b2 ...)
+       (with-implicit (k quasiquote)
+         #'(let-syntax ([quasiquote
+                          (lambda (x)
+                            (syntax-case x ()
+                              ((_ e) #'(my-backquote e))))])
+             (let () b1 b2 ...)))])))
 
 ;;; ------------------------------
 
@@ -817,7 +793,77 @@
     (Prog x)))
 ;;; (parse '(program (set! x 3) (+ x 4)))) => (begin (set! x 3) (+ x 4))
 
-;; CHANGELOG (most recent changes are logged at the top of this file)
+;; CHANGELOG
+
+;; [31 January 2010]
+;; rkd replaced _ with k in the syntax-case patterns for match, match+,
+;; etc., since in R6RS, _ is not a pattern variable.
+
+;; [31 January 2010]
+;; rkd renamed syntax-object->datum and datum->syntax-object to their
+;; R6RS names syntax->datum and datum->syntax.  also replaced the
+;; literal-identifier=? calls with free-identifier=? calls.
+
+;; [3 February 2008]
+;; rkd modified overloaded quasiquote to handle expressions followed
+;; by more than one ellipsis.
+
+;; [3 February 2008]
+;; aziz modified mapper to quote the inserted empty lists
+
+;; [3 March 2007]
+;; aziz minor change to eagerly catch malformed clauses (e.g. a clause
+;; that's not a list of 2 or more subforms).
+
+;; [13 March 2002]
+;; rkd added following change by Friedman and Ganz to the main source
+;; code thread and fixed a couple of minor problems.
+
+;; [9 March 2002]
+;; Dan Friedman and Steve Ganz added the ability to use identical pattern
+;; variables.  The patterns represented by the variables are compared
+;; using the value of the parameter match-equality-test, which defaults
+;; to equal?.
+;;
+;; > (match '(1 2 1 2 1)
+;;     [(,a ,b ,a ,b ,a) (guard (number? a) (number? b)) (+ a b)])
+;; 3
+;; ;;
+;; > (match '((1 2 3) 5 (1 2 3))
+;;     [((,a ...) ,b (,a ...)) `(,a ... ,b)])
+;; (1 2 3 5)
+;; ;;
+;; > (parameterize ([match-equality-test (lambda (x y) (equal? x (reverse y)))])
+;;     (match '((1 2 3) (3 2 1))   
+;;       [(,a ,a) 'yes]
+;;       [,oops 'no]))
+;; yes
+
+;; [10 Jan 2002]
+;; eh fixed bug that caused (match '((1 2 3 4)) (((,a ... ,d) . ,x) a)) to
+;; blow up.  The bug was caused by a bug in the sexp-dispatch procedure
+;; where a base value empty list was passed to an accumulator from inside
+;; the recursion, instead of passing the old value of the accumulator.
+
+;; [14 Jan 2001]
+;; rkd added syntax checks to unquote pattern parsing to weed out invalid
+;; patterns like ,#(a) and ,[(vector-ref d 1)].
+
+;; [14 Jan 2001]
+;; rkd added ,[Cata -> Id* ...] to allow specification of recursion
+;; function.  ,[Id* ...] recurs to match; ,[Cata -> Id* ...] recurs
+;; to Cata.
+
+;; [14 Jan 2001]
+;; rkd tightened up checks for ellipses and nested quasiquote; was comparing
+;; symbolic names, which, as had been noted in the source, is a possible
+;; hygiene bug.  Replaced error call in guard-body with syntax-error to
+;; allow error to include source line/character information.
+
+;; [13 Jan 2001]
+;; rkd fixed match patterns of the form (stuff* ,[x] ... stuff+), which
+;; had been recurring on subforms of each item rather than on the items
+;; themselves.
 
 ;; [29 Feb 2000]
 ;; Fixed a case sensitivity bug.

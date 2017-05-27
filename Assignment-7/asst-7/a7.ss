@@ -174,7 +174,8 @@
              [,expr* (error who "invalid Expr ~s" expr*)]))
     (define (simple? x)
       (or (uvar? x) (label? x) (and (integer? x) (exact? x))
-          (memq x '(+ - * logand logor sra)) (memq x '(= < <= > >=))))
+          (memq x '(+ - * logand logor sra))
+          (memq x '(= < <= > >=))))
     (define (Value val)
       (match val
              [(if ,[Pred -> test] ,[conseq] ,[altern]) `(if ,test ,conseq ,altern)]
@@ -231,7 +232,8 @@
            [(,binop ,x ,y) 
             (guard (memq binop '(+ - * logand logor sra)))
             `(set! ,lhs (,binop ,x ,y))]
-           [(,rator ,rand* ...) `(set! ,lhs (,rator ,rand* ...))] ;This will make it (set! t.1 (ack$0 2 3)) and push the expression to the end
+           ;;This will make it (set! t.1 (ack$0 2 3)) and push the expression to the end
+           [(,rator ,rand* ...) `(set! ,lhs (,rator ,rand* ...))]
            [,tr `(set! ,lhs ,tr)]))
   (define (Effect ef)
     (match ef
@@ -323,12 +325,16 @@
                [(set! ,uvar (,binop ,x ,y)) (guard (memq binop '(+ - * logand logor sra))) effect]
                [(set! ,uvar (,triv ,triv* ...)) 
                 (guard (trivial? triv))
-                (make-begin `(,(Effect `(,triv ,triv* ...)) (set! ,uvar ,return-value-register)))]												
-               [(,triv ,triv* ...)											;This handles non tail call in Effect Context
+                (make-begin `(,(Effect `(,triv ,triv* ...)) (set! ,uvar ,return-value-register)))]
+               ;;This handles non tail call in Effect Context
+               [(,triv ,triv* ...)
                 (let* ((return-point-var (unique-label 'rp))
-                       (fml-loc* (argument-locations triv* index->new-frame-var)) ;Assign a register or variable to each formal parameter
+                       ;;Assign a register or variable to each formal parameter
+                       (fml-loc* (argument-locations triv* index->new-frame-var))
                        (expr (make-begin 
-                              `((set! ,fml-loc* ,triv*) ... (set! ,return-address-register ,return-point-var) (,triv ,return-address-register ,frame-pointer-register ,@fml-loc*))))
+                              `((set! ,fml-loc* ,triv*) ...
+                                (set! ,return-address-register ,return-point-var)
+                                (,triv ,return-address-register ,frame-pointer-register ,@fml-loc*))))
                        (return-point-expr `(return-point ,return-point-var ,expr))) ;Create a return-point-expr
                   (set! new-frame-var** (cons (filter uvar? fml-loc*) new-frame-var**))
                   (make-begin `(,return-point-expr)))])))
@@ -357,7 +363,9 @@
                [(,triv ,triv* ...) 
                 (let ((fml-loc* (reverse (argument-locations triv* index->frame-var))) (triv* (reverse triv*)))
                   (make-begin 
-                   `((set! ,fml-loc* ,triv*) ... (set! ,return-address-register ,rp) (,triv ,return-address-register ,frame-pointer-register ,@fml-loc*))))]
+                   `((set! ,fml-loc* ,triv*) ...
+                     (set! ,return-address-register ,rp)
+                     (,triv ,return-address-register ,frame-pointer-register ,@fml-loc*))))]
                [,triv 	(let ((return-value-expr `(set! ,return-value-register ,triv))
                               (return-calling-expr `(,rp ,frame-pointer-register ,return-value-register)))
                           (make-begin `(,return-value-expr ,return-calling-expr)))])))
